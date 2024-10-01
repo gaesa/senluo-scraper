@@ -29,7 +29,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Configuration" Version="8.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0"/>
-        <PackageReference Include="Microsoft.Playwright" Version="1.46.0"/>
+        <PackageReference Include="Microsoft.Playwright" Version="1.47.0"/>
         <PackageReference Include="ShellProgressBar" Version="5.2.0"/>
         <PackageReference Include="System.Linq.Async" Version="6.0.1"/>
     </ItemGroup>
