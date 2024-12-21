@@ -49,9 +49,13 @@ internal static class LocatorExtensions {
     }
 
     internal static async Task HideAll(this IEnumerable<ILocator> locators) {
-        await locators.ToAsyncEnumerable()
-            .WhereAwait(async locator => await locator.IsVisibleAsync())
-            .ForEachAwaitAsync(Hide);
+        await Task.WhenAll(
+            locators
+                .FilterForEachAsync(
+                    async locator => await locator.IsVisibleAsync(),
+                    async locator => await locator.Hide()
+                )
+        );
     }
 }
 

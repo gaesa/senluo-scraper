@@ -67,14 +67,14 @@ public static partial class Program {
             "count-server.sharethis.com"
         ];
 
-        await patterns
-            .Select(pattern => $"https://{pattern}")
-            .ToAsyncEnumerable()
-            .ForEachAwaitAsync(
-                async pattern => {
-                    await context.RouteAsync(
-                        $"{pattern}/**", async route => await route.AbortAsync());
-                });
+        await Task.WhenAll(
+            patterns
+                .Select(pattern => $"https://{pattern}")
+                .Select(
+                    async pattern => {
+                        await context.RouteAsync(
+                            $"{pattern}/**", async route => await route.AbortAsync());
+                    }));
     }
 
     private static async Task ScrollToBottom(IPage page) {
@@ -104,8 +104,7 @@ public static partial class Program {
             } else {
                 var imgs = page.Locator("p.item-image img");
                 return await (await imgs.AllAsync())
-                    .ToAsyncEnumerable()
-                    .SelectAwait(
+                    .Select(
                         async img =>
                             RequireNonNull(await img.GetAttributeAsync("src"), $"Image {img} has no 'src'")
                     ).AnyAsync(src => src.EndsWith(".gif")); // loading animation
@@ -195,22 +194,20 @@ public static partial class Program {
         await locators.HideAll();
     }
 
-    private static async Task<string[]> ExtractSrcLinks(IPage page, IEnumerable<ILocator> locators) {
+    private static IEnumerable<Task<string>> ExtractSrcLinks(IPage page, IEnumerable<ILocator> locators) {
         var prefix = $"https://{new Uri(page.Url).Host}";
-        return await locators
-            .ToAsyncEnumerable()
-            .SelectAwait(
+        return locators
+            .Select(
                 async locator => RequireNonNull(
                     await locator.GetAttributeAsync("src"), $"'{locator}' has no 'src'"))
-            .Select(src => $"{prefix}{src}")
-            .ToArrayAsync();
+            .Select(async src => $"{prefix}{await src}");
     }
 
     private static async Task DownloadImages(IPage page, string directory) {
         var imgs = await page.Locator("p.item-image img").AllAsync();
         var count = imgs.Count;
 
-        var imgUrls = await ExtractSrcLinks(page, imgs);
+        var imgUrls = ExtractSrcLinks(page, imgs);
         Console.WriteLine($"Already prepared to download {count} images");
 
         using var bar = new ProgressBar(
@@ -219,7 +216,8 @@ public static partial class Program {
         CancelConnectionLimit();
         using var client = await page.NewHttpClient();
         await imgUrls.ForEachWithLimitedConcurrency(
-            async (url, index) => {
+            async (urlTask, index) => {
+                var url = await urlTask;
                 await client.Download(url, Path.Combine(directory, $"{index}{url.GetExtension()}"), Logger);
                 bar.Tick();
             },
