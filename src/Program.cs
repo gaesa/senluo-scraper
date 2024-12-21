@@ -26,6 +26,7 @@ public static partial class Program {
     private static readonly ILogger Logger = CreateLogger("Program");
 
     private static async Task BlockRequest(IBrowserContext context) {
+        // ReSharper disable StringLiteralTypo
         string[] patterns = [
             "tianji.viagle.com",
             "www.googletagmanager.com",
@@ -66,6 +67,7 @@ public static partial class Program {
             "l.sharethis.com",
             "count-server.sharethis.com"
         ];
+        // ReSharper restore StringLiteralTypo
 
         await Task.WhenAll(
             patterns
@@ -121,6 +123,7 @@ public static partial class Program {
     }
 
     private static async Task<bool?> AreAllImagesLoaded(IPage page) {
+        // ReSharper disable once StringLiteralTypo
         var title = page.Locator("h1.focusbox-title");
         var text = await title.InnerTextAsync();
         var match = ImgCountPattern().Match(text);
