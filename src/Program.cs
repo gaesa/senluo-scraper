@@ -25,6 +25,9 @@ internal class Cli(string url, string dir) {
 public static partial class Program {
     private static readonly ILogger Logger = CreateLogger("Program");
 
+    // -1: not initialized yet, 0: initialized but unable to get value
+    private static int _expectedImgCount = -1;
+
     private static async Task BlockRequest(IBrowserContext context) {
         // ReSharper disable StringLiteralTypo
         string[] patterns = [
@@ -122,18 +125,33 @@ public static partial class Program {
         }
     }
 
+    // null: no way to determine if all images are loaded
     private static async Task<bool?> AreAllImagesLoaded(IPage page) {
-        // ReSharper disable once StringLiteralTypo
-        var title = page.Locator("h1.focusbox-title");
-        var text = await title.InnerTextAsync();
-        var match = ImgCountPattern().Match(text);
-        if (match.Success) {
-            var expectedCount = int.Parse(match.Groups[1].Value);
+        async Task<bool> HasReachedCount(int expectedCount) {
             var imgs = page.Locator("p.item-image img");
             var actualCount = await imgs.CountAsync();
             return actualCount == expectedCount;
-        } else {
-            return null; // No way to determine if all images are loaded
+        }
+
+        if (Thread.VolatileRead(ref _expectedImgCount) == -1) { // not cached
+            // ReSharper disable once StringLiteralTypo
+            var title = page.Locator("h1.focusbox-title");
+            var text = await title.InnerTextAsync();
+            var match = ImgCountPattern().Match(text);
+            if (match.Success) {
+                var count = int.Parse(match.Groups[1].Value); // impossible to be negative
+                Thread.VolatileWrite(ref _expectedImgCount, count);
+                return await HasReachedCount(count); // practically non-zero
+            } else {
+                Thread.VolatileWrite(ref _expectedImgCount, 0);
+                return null;
+            }
+        } else { // cached
+            if (_expectedImgCount == 0) {
+                return null;
+            } else {
+                return await HasReachedCount(_expectedImgCount);
+            }
         }
     }
 
