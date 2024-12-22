@@ -16,15 +16,16 @@ internal static class Enumerables {
         return false;
     }
 
-    internal static IEnumerable<Task> FilterForEachAsync<T>(
+    internal static async Task FilterForEachAsync<T>(
         this IEnumerable<T> source, Func<T, Task<bool>> predicate, Func<T, Task> action
     ) {
-        return source.Select(
-            async task => {
-                if (await predicate(task)) {
-                    await action(task);
-                }
-            });
+        await Task.WhenAll(
+            source.Select(
+                async task => {
+                    if (await predicate(task)) {
+                        await action(task);
+                    }
+                }));
     }
 
     internal static async Task ForEachWithLimitedConcurrency<T>(
