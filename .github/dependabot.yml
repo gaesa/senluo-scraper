@@ -3,9 +3,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "semiannually"
+      interval: "yearly"
 
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
-      interval: "semiannually"
+      interval: "yearly"
