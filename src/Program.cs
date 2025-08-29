@@ -25,7 +25,20 @@ internal class Cli(string url, string dir) {
 public static partial class Program {
     private static readonly ILogger Logger = CreateLogger("Program");
 
-    // -1: not initialized yet, 0: initialized but unable to get value
+    // -1: not initialized yet
+    //  0: initialized, but unable to determine expected image count
+    // >0: initialized with expected image count
+    //
+    // SAFETY:
+    // - `_expectedImgCount` is effectively a `static mut`: global and mutable.
+    // - Only one logical flow (`AreAllImagesLoaded`) ever accesses it.
+    // - That flow is always sequentially awaited, so no parallel invocations occur.
+    // - However, the async runtime may resume the flow on different threads.
+    //   Thus, ordinary reads/writes would risk stale or reordered values.
+    // - Volatile operations are used to enforce safe publication:
+    //   - First write is `VolatileWrite`: publishes initialized value to other threads.
+    //   - First read in subsequent calls is `VolatileRead`: ensures visibility of the published value.
+    //   - Later reads are plain, since the value is immutable after initialization.
     private static int _expectedImgCount = -1;
 
     private static async Task BlockRequest(IBrowserContext context) {
@@ -133,6 +146,8 @@ public static partial class Program {
             return actualCount == expectedCount;
         }
 
+        // SAFETY: `VolatileRead` ensures the second and later calls observe
+        // the published value from the first initialization, even if resumed on another thread.
         if (Thread.VolatileRead(ref _expectedImgCount) == -1) { // not cached
             // ReSharper disable once StringLiteralTypo
             var title = page.Locator("h1.focusbox-title");
@@ -140,6 +155,8 @@ public static partial class Program {
             var match = ImgCountPattern().Match(text);
             if (match.Success) {
                 var count = int.Parse(match.Groups[1].Value); // impossible to be negative
+                // SAFETY: `VolatileWrite` publishes the initialized value
+                // so subsequent calls on other threads will see it.
                 Thread.VolatileWrite(ref _expectedImgCount, count);
                 return await HasReachedCount(count); // practically non-zero
             } else {
@@ -147,6 +164,8 @@ public static partial class Program {
                 return null;
             }
         } else { // cached
+            // SAFETY: after a `VolatileRead` has established visibility,
+            // ordinary reads are safe, since `_expectedImgCount` never mutates again.
             if (_expectedImgCount == 0) {
                 return null;
             } else {
